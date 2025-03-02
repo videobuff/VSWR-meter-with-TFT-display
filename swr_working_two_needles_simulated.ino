@@ -1,13 +1,22 @@
-// Code to create a cross needle display for use with SWR meters
-// use is made of a combined display tpe WT32-SCO1, which conains a ESP32 Wrover B
-// The dial is a jpeg image taken from a Diamond meter, and converted to hexadecimaal using http://www.rinkydinkelectronics.com/_t_doimageconverter_mono.php#google_vignette.
-// The sketch can be put in simulated or real mode  by changing #define SIMULATION_MODE 0
-// Set to 0 for real ADC values or 1 for simulated values
+/*--------------------------------------------------------------
+  VSWR meter - Version 1.0
+  sketch name: Webrotor_Antenna_sensor_TTGO.ino
+  Last updated 03032025-00:30 CET
+  --------------------------------------------------------------
 
-// The sketch calculates the size of the buffer memory required and
-// reserves the memory for the TFT block copy.
-// Based on a design by Robert de Kok, PA2RDK, and rewritten by PA0ESH & CHATGPT.
-// Sunday March 2nd 2025
+  Description:  Code to create a cross needle display for use with SWR meters
+    // use is made of a combined display tpe WT32-SCO1, which conains a ESP32 Wrover B
+    // but any ESP32 with an (cheap) TFT display will do.
+    // The dial is a jpeg image taken from a Diamond meter, and converted to hexadecimaal using http://www.rinkydinkelectronics.com/_t_doimageconverter_mono.php#google_vignette.
+    // The sketch can be put in simulated or real mode  by changing #define SIMULATION_MODE 0
+    // Set to 0 for real ADC values or 1 for simulated values
+
+    // The sketch calculates the size of the buffer memory required and
+    // reserves the memory for the TFT block copy.
+    // Based on a design by Robert de Kok, PA2RDK, and rewritten by PA0ESH & CHATGPT.
+    // Sunday March 2nd 2025
+--------------------------------------------------------------*/
+
 
 
 #include <TFT_eSPI.h>
@@ -40,21 +49,23 @@ TFT_eSprite sprite = TFT_eSprite(&tft);
 #define SIMULATION_MODE 0  // Set to 0 for real ADC values or 1 for simulated values
 
 // Needle animation counters
-int counterREF = -64;
+int needleREF = 0;
 bool countingUpREF = true;
 
-int counterFWD = -175;
+int needleFWD = 0;
 bool countingUpFWD = true;
 
 // Simulated values for ADC1 (Reflected Power) and ADC2 (Forward Power)
-float simulatedADC1 = 1000;  // Simulated value for ADC1
-float simulatedADC2 = 4095;  // Simulated value for ADC2
+float simulatedADC1 = 1.0;  // Simulated voltage for ADC1 (Reflected Power) (0-1V range)
+float simulatedADC2 = 3.0;  // Simulated voltage for ADC2 (Forward Power) (0-3V range)
+
 
 void setup() {
   Serial.begin(115200);
   Serial.println("Arduino / ESP32 sketch for cross needle meter with JPEG flash");
   Serial.println("Derived from a design by Robert de Kok, PA2RDK");
-  Serial.println("Revision: 1 March 2025 - PA0ESH");
+  Serial.println("Revision: 3 March 2025 - PA0ESH");
+  Serial.println(__FILE__);
   Serial.println();
 
   tft.init();
@@ -69,24 +80,21 @@ void setup() {
 }
 
 float mapFloat(float x, float in_min, float in_max, float out_min, float out_max) {
-  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+  return out_max - (out_max - out_min) * ((x - in_min) / (in_max - in_min));
 }
+
 
 // Function to simulate ADC values (used when SIMULATION_MODE is 1)
 float getSimulatedADCValue(int pin) {
-  Serial.print("pin   =");
-  Serial.println(pin);
-  Serial.println("ADC1_PIN  =");
-  Serial.println(ADC1_PIN);
-  Serial.println("-----------------------");
   if (pin == ADC1_PIN) {
-    return simulatedADC1;  // Simulated value for ADC1
+    return simulatedADC1;  // Simulated voltage for ADC1
   }
   if (pin == ADC2_PIN) {
-    return simulatedADC2;  // Simulated value for ADC2
+    return simulatedADC2;  // Simulated voltage for ADC2
   }
-  return 0;  // Default value if no pin matched
+  return 0.0;  // Default value if no pin matched
 }
+
 
 // Function to read real ADC values (used when SIMULATION_MODE is 0)
 float getRealADCValue(int pin) {
@@ -95,10 +103,12 @@ float getRealADCValue(int pin) {
 
 // Function to get ADC value based on mode (simulation or real)
 float getADCValue(int pin) {
-  if (SIMULATION_MODE) {
-    return getSimulatedADCValue(pin);  // Return simulated value
+  if (SIMULATION_MODE == 1) {  // Explicitly check if SIMULATION_MODE is set to 1
+    //Serial.println("Using simulated ADC values.");
+    return getSimulatedADCValue(pin);
   } else {
-    return getRealADCValue(pin);  // Return real ADC value
+    //Serial.println("Using real ADC values.");
+    return getRealADCValue(pin);
   }
 }
 
@@ -113,7 +123,7 @@ void drawNeedles(float angle1, float angle2) {
   drawMeterImage();
 
   // Calculate dynamic needle length for Needle 1 (Reflected Power)
-  int needleLength1 = map(angle1, -64, -6, 185, 265);
+  int needleLength1 = map(angle1, -64, -6, 185, 255);
   float rad1 = radians(angle1);
   int x1 = NEEDLE1_X + cos(rad1) * needleLength1;
   int y1 = NEEDLE1_Y + sin(rad1) * needleLength1;
@@ -123,7 +133,7 @@ void drawNeedles(float angle1, float angle2) {
 
 
   // Calculate dynamic needle length for Needle 2 (Forward Power)
-  int needleLength2 = map(angle2, -175, -120, 260, 200);
+  int needleLength2 = map(angle2, -174, -120, 255, 195);
   float rad2 = radians(angle2);
   int x2 = NEEDLE2_X + cos(rad2) * needleLength2;
   int y2 = NEEDLE2_Y + sin(rad2) * needleLength2;
@@ -166,25 +176,25 @@ void drawInfoBoxes(float value1, float value2, float vswr) {
   tft.print(fwdStr);  // Print FWD value
 
   // Box 2: Display VSWR (Background changes dynamically)
-uint16_t vswrColor = (vswr < 3.0) ? TFT_GREEN : TFT_RED;
-uint16_t vswrTextColor = (vswr < 3.0) ? TFT_WHITE : TFT_BLACK;  // Change font color if red background
+  uint16_t vswrColor = (vswr < 3.0) ? TFT_GREEN : TFT_RED;
+  uint16_t vswrTextColor = (vswr < 3.0) ? TFT_WHITE : TFT_BLACK;  // Change font color if red background
 
-tft.fillRect(startX + BOX_WIDTH + BOX_SPACING, BOX_Y, BOX_WIDTH, BOX_HEIGHT, vswrColor);
-tft.drawRect(startX + BOX_WIDTH + BOX_SPACING, BOX_Y, BOX_WIDTH, BOX_HEIGHT, TFT_WHITE);
-tft.setTextColor(vswrTextColor, vswrColor);  // Set text color dynamically
+  tft.fillRect(startX + BOX_WIDTH + BOX_SPACING, BOX_Y, BOX_WIDTH, BOX_HEIGHT, vswrColor);
+  tft.drawRect(startX + BOX_WIDTH + BOX_SPACING, BOX_Y, BOX_WIDTH, BOX_HEIGHT, TFT_WHITE);
+  tft.setTextColor(vswrTextColor, vswrColor);  // Set text color dynamically
 
-char vswrStr[10];
-if (vswr > 5.0) {
+  char vswrStr[10];
+  if (vswr > 5.0) {
     strcpy(vswrStr, "DANGER");  // Show "DANGER" when VSWR is above 5
-} else {
+  } else {
     snprintf(vswrStr, sizeof(vswrStr), "%.1f", vswr);
-}
+  }
 
-int textWidthVSWR = tft.textWidth(vswrStr);
-int textX_VSWR = startX + BOX_WIDTH + BOX_SPACING + (BOX_WIDTH - textWidthVSWR) / 2;
+  int textWidthVSWR = tft.textWidth(vswrStr);
+  int textX_VSWR = startX + BOX_WIDTH + BOX_SPACING + (BOX_WIDTH - textWidthVSWR) / 2;
 
-tft.setCursor(textX_VSWR, BOX_Y + 8);
-tft.print(vswrStr);
+  tft.setCursor(textX_VSWR, BOX_Y + 8);
+  tft.print(vswrStr);
 
   // Box 3: Display ADC1 (Reflected Power) in watts
   tft.setTextColor(TFT_WHITE, TFT_BLACK);  // Reset text color
@@ -200,78 +210,109 @@ tft.print(vswrStr);
 }
 
 void loop() {
-  // Get the ADC values (simulated or real)
-  float adc1 = getADCValue(ADC1_PIN);
-  float adc2 = getADCValue(ADC2_PIN);
+  float adc1, adc2;
 
-  // Simulated movement for REF Power
+  if (SIMULATION_MODE == 0) {
+    adc1 = getADCValue(ADC1_PIN);  // Read ADC voltage (0-3V or 0-1V)
+    adc2 = getADCValue(ADC2_PIN);
+  } else {
+    //Serial.println("Simulating ADC values...");
+
+    adc1 = getSimulatedADCValue(ADC1_PIN);  // Use simulated values
+    adc2 = getSimulatedADCValue(ADC2_PIN);
+  }
+
+  //Serial.print("ADC1 Voltage (REF): ");
+  //Serial.println(adc1, 2);
+
+  //Serial.print("ADC2 Voltage (FWD): ");
+  //Serial.println(adc2, 2);
+
+  // Map voltages correctly to angles
+  needleREF = mapFloat(adc1, 0.0, 1.0, -64, -6);
+  needleFWD = mapFloat(adc2, 0.0, 3.0, -120, -174);
+
+  //Serial.print("Mapped needleREF: ");
+  //Serial.println(needleREF);
+
+  //Serial.print("Mapped needleFWD: ");
+  //Serial.println(needleFWD);
+
+  float boxREF = mapFloat(needleREF, -64, -6, 0.0, 10.0);
+  float boxFWD = mapFloat(needleFWD, -120, -175, 0.0, 30.0);
+
+  // Ensure boxREF is not negative and is exactly 0 when ADC1 is 0V
+  if (adc1 <= 0.01) {
+    boxREF = 0.0;
+  }
+
+  // Ensure boxFWD is not negative and is exactly 0 when ADC2 is 0V
+  if (adc2 <= 0.01) {
+    boxFWD = 0.0;
+  }
+
+  //Serial.print("Reflected Power (W): ");
+  //Serial.println(boxREF, 2);
+
+  //Serial.print("Forward Power (W): ");
+  //Serial.println(boxFWD, 2);
+
+  float vswr = calculateVSWR(boxREF, boxFWD);
+  //Serial.print("VSWR: ");
+  //Serial.println(vswr, 2);
+
+  drawNeedles(needleREF, needleFWD);
+  drawInfoBoxes(boxREF, boxFWD, vswr);
+
+  delay(50);
+}
+
+void simulateNeedles() {
+  // Simulate ADC1 (Reflected Power) between 0.0 and 1.0
   if (countingUpREF) {
-    counterREF++;
-    if (counterREF >= -6) countingUpREF = false;
+    simulatedADC1 += 0.1;
+    if (simulatedADC1 >= 1.0) countingUpREF = false;
   } else {
-    counterREF--;
-    if (counterREF <= -64) countingUpREF = true;
+    simulatedADC1 -= 0.1;
+    if (simulatedADC1 <= 0.0) countingUpREF = true;
   }
 
-  // Simulated movement for FWD Power
+  // Simulate ADC2 (Forward Power) between 0.0 and 3.0
   if (countingUpFWD) {
-    counterFWD++;
-    if (counterFWD >= -120) countingUpFWD = false;
+    simulatedADC2 += 0.1;
+    if (simulatedADC2 >= 3.0) countingUpFWD = false;
   } else {
-    counterFWD--;
-    if (counterFWD <= -175) countingUpFWD = true;
+    simulatedADC2 -= 0.1;
+    if (simulatedADC2 <= 0.0) countingUpFWD = true;
   }
-
-  // Convert angles to watts
-  //float watt1 = map(counterREF, -64, -6, 10, 0);  // Map -64° to 10W and 0° to 0W (Reflected Power)
-  //float watt2 = map(counterFWD,-175, -120, 0, 30);  // Map-175° to 0W and -120° to 30W (Forward Power)
-  float watt1 = mapFloat(counterREF, -64, -6, 10.0, 0.0);
-  float watt2 = mapFloat(counterFWD, -175, -120, 0.0, 30.0);
-  // Calculate VSWR
-  float vswr = calculateVSWR(watt1, watt2);  // Calculate VSWR
-
-  // Draw updated needles
-  drawNeedles(counterREF, counterFWD);
-
-  // Draw information boxes directly on TFT (outside sprite)
-  drawInfoBoxes(watt1, watt2, vswr);
-
-  Serial.print("Reflected Power (W): ");
-  Serial.println(watt1);
-  Serial.print("Forward Power (W): ");
-  Serial.println(watt2);
-  Serial.print("VSWR: ");
-  Serial.println(vswr);
-
-  delay(50);  // Small delay for smooth animation
 }
 
 void drawWideLine(int x0, int y0, int x1, int y1, int color, int width) {
-    float angle = atan2(y1 - y0, x1 - x0); // Calculate the angle of the line
-    float offsetX = sin(angle) * width / 2.0;
-    float offsetY = cos(angle) * width / 2.0;
+  float angle = atan2(y1 - y0, x1 - x0);  // Calculate the angle of the line
+  float offsetX = sin(angle) * width / 2.0;
+  float offsetY = cos(angle) * width / 2.0;
 
-    // Define the 3 points of a triangle
-    int x2 = x0 + offsetX;
-    int y2 = y0 - offsetY;
-    int x3 = x0 - offsetX;
-    int y3 = y0 + offsetY;
-    int x4 = x1 + offsetX;
-    int y4 = y1 - offsetY;
-    int x5 = x1 - offsetX;
-    int y5 = y1 + offsetY;
+  // Define the 3 points of a triangle
+  int x2 = x0 + offsetX;
+  int y2 = y0 - offsetY;
+  int x3 = x0 - offsetX;
+  int y3 = y0 + offsetY;
+  int x4 = x1 + offsetX;
+  int y4 = y1 - offsetY;
+  int x5 = x1 - offsetX;
+  int y5 = y1 + offsetY;
 
-    // Draw filled triangles for a smooth thick line
-    sprite.fillTriangle(x2, y2, x3, y3, x4, y4, color);
-    sprite.fillTriangle(x3, y3, x4, y4, x5, y5, color);
+  // Draw filled triangles for a smooth thick line
+  sprite.fillTriangle(x2, y2, x3, y3, x4, y4, color);
+  sprite.fillTriangle(x3, y3, x4, y4, x5, y5, color);
 }
 
 void drawThickNeedle(int x0, int y0, int x1, int y1, int color, int width) {
-    float angle = atan2(y1 - y0, x1 - x0); 
-    float dx = cos(angle) * width / 2.0;
-    float dy = sin(angle) * width / 2.0;
+  float angle = atan2(y1 - y0, x1 - x0);
+  float dx = cos(angle) * width / 2.0;
+  float dy = sin(angle) * width / 2.0;
 
-    sprite.fillRect(x0 - dx, y0 - dy, x1 - x0 + width, y1 - y0 + width, color);
+  sprite.fillRect(x0 - dx, y0 - dy, x1 - x0 + width, y1 - y0 + width, color);
 }
 
 // Function to calculate VSWR
@@ -281,10 +322,9 @@ float calculateVSWR(float reflectedPower, float forwardPower) {
   }
 
   float ratio = reflectedPower / forwardPower;
-float denominator = 1.0f - sqrt(ratio);
-if (denominator < 0.0001f) denominator = 0.0001f;  // Prevent division by zero
+  float denominator = 1.0f - sqrt(ratio);
+  if (denominator < 0.0001f) denominator = 0.0001f;  // Prevent division by zero
 
-float vswr = (1 + sqrt(ratio)) / denominator;
-return max(vswr, 1.0f);  // Ensure VSWR is at least 1.0
+  float vswr = (1 + sqrt(ratio)) / denominator;
+  return max(vswr, 1.0f);  // Ensure VSWR is at least 1.0
 }
-
