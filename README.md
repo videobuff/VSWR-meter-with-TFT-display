@@ -1,6 +1,6 @@
 Work in progress
 
-Code to create a cross needle display for use with SWR metersuse is made of a combined display tpe WT32-SCO1, which contains a ESP32 Wrover B
+Code to create a cross needle display for use with SWR meters. Use is made of a combined display tpe WT32-SCO1, which contains a ESP32 Wrover B
 The dial is a jpeg image taken from a Diamond meter, and converted to hexadecimaal using http://www.rinkydinkelectronics.com/_t_doimageconverter_mono.php#google_vignette.
 The sketch can be put in simulated or real mode  by changing #define SIMULATION_MODE 0
 Set to 0 for real ADC values or 1 for simulated values
