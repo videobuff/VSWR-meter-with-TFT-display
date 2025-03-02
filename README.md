@@ -10,8 +10,9 @@ Items to be completed.
 1. ADC input for FWD and REF. The SG labs amplifier gives 0 to 3.5 V  for 0 to 20W output. But the ADC can only handle 3.3V max.
     FWD Voltage Output 3.5V typ. @ 20W Output power
     REF Voltage Output - reflected wave , can be used to calculate estimated output SWR
-3. 
+
 
 Based on a design by Robert de Kok, PA2RDK, and rewritten by PA0ESH & CHATGPT.
 Sunday March 2nd 2025
 
+![IMG_4758](https://github.com/user-attachments/assets/e1c86bfb-f370-434d-bdb2-167cee619ff1)
