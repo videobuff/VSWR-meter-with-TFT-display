@@ -1,7 +1,7 @@
 /*--------------------------------------------------------------
   VSWR meter - Version 1.0
   sketch name: Webrotor_Antenna_sensor_TTGO.ino
-  Last updated 03032025-15:30 CET
+  Last updated 03032025-22:30 CET
   --------------------------------------------------------------
 
   Description:  Code to create a cross needle display for use with SWR meters
@@ -14,6 +14,7 @@
     // The sketch calculates the size of the buffer memory required and
     // reserves the memory for the TFT block copy.
     // Based on a design by Robert de Kok, PA2RDK, and rewritten by PA0ESH & CHATGPT.
+    // Monday March 3rd 2025
 --------------------------------------------------------------*/
 
 
@@ -34,8 +35,8 @@ TFT_eSprite sprite = TFT_eSprite(&tft);
 #define NEEDLE2_Y 214
 
 // Define ADC pins
-#define ADC1_PIN 22  // GPIO22 for Needle 1 (Reflected Power)
-#define ADC2_PIN 23  // GPIO23 for Needle 2 (Forward Power)
+#define ADC1_PIN 32  // GPIO32 for Needle 1 (Reflected Power)
+#define ADC2_PIN 33  // GPIO33 for Needle 2 (Forward Power)
 
 // Box dimensions and positions
 #define BOX_WIDTH 100
@@ -45,7 +46,7 @@ TFT_eSprite sprite = TFT_eSprite(&tft);
 #define BOX_SPACING 10
 
 // Simulation or Real mode define
-#define SIMULATION_MODE 1  // Set to 0 for real ADC values or 1 for simulated values
+#define SIMULATION_MODE 0  // Set to 0 for real ADC values or 1 for simulated values
 
 // Needle animation counters
 int needleREF = 0;
@@ -53,10 +54,14 @@ bool countingUpREF = true;
 
 int needleFWD = 0;
 bool countingUpFWD = true;
+bool increasing = true;
+float adc1 = 0.0;
+float adc2 = 0.0;
 
 // Simulated values for ADC1 (Reflected Power) and ADC2 (Forward Power)
-float simulatedADC1 = 0.0;  // Simulated voltage for ADC1 (Reflected Power) (0-1V range)
-float simulatedADC2 = 0.0;  // Simulated voltage for ADC2 (Forward Power) (0-3V range)
+//float simulatedADC1 = 0.3;  // Simulated voltage for ADC1 (Reflected Power) (0-1V range)
+// float simulatedADC2 = 2.1;  // Simulated voltage for ADC2 (Forward Power) (0-3V range)
+
 
 
 void setup() {
@@ -82,34 +87,6 @@ float mapFloat(float x, float in_min, float in_max, float out_min, float out_max
   return out_max - (out_max - out_min) * ((x - in_min) / (in_max - in_min));
 }
 
-
-// Function to simulate ADC values (used when SIMULATION_MODE is 1)
-float getSimulatedADCValue(int pin) {
-  if (pin == ADC1_PIN) {
-    return simulatedADC1;  // Simulated voltage for ADC1
-  }
-  if (pin == ADC2_PIN) {
-    return simulatedADC2;  // Simulated voltage for ADC2
-  }
-  return 0.0;  // Default value if no pin matched
-}
-
-
-// Function to read real ADC values (used when SIMULATION_MODE is 0)
-float getRealADCValue(int pin) {
-  return analogRead(pin);  // Real ADC reading
-}
-
-// Function to get ADC value based on mode (simulation or real)
-float getADCValue(int pin) {
-  if (SIMULATION_MODE == 1) {  // Explicitly check if SIMULATION_MODE is set to 1
-    Serial.println("Using simulated ADC values.");
-    return getSimulatedADCValue(pin);
-  } else {
-    Serial.println("Using real ADC values.");
-    return getRealADCValue(pin);
-  }
-}
 
 // Function to draw the meter image
 void drawMeterImage() {
@@ -183,7 +160,7 @@ void drawInfoBoxes(float value1, float value2, float vswr) {
   tft.setTextColor(vswrTextColor, vswrColor);  // Set text color dynamically
 
   char vswrStr[10];
-  if (vswr > 5.0) {
+  if (vswr > 4.0) {
     strcpy(vswrStr, "DANGER");  // Show "DANGER" when VSWR is above 5
   } else {
     snprintf(vswrStr, sizeof(vswrStr), "%.1f", vswr);
@@ -209,28 +186,49 @@ void drawInfoBoxes(float value1, float value2, float vswr) {
 }
 
 void loop() {
-  float adc1, adc2;
 
   if (SIMULATION_MODE == 0) {
-    adc1 = getADCValue(ADC1_PIN);  // Read ADC voltage (0-3V or 0-1V)
-    adc2 = getADCValue(ADC2_PIN);
+    int raw1 = analogRead(ADC1_PIN); // Read raw ADC value from GPIO 32
+    int raw2 = analogRead(ADC2_PIN); // Read raw ADC value from GPIO 33
+    float voltage1 = raw1 * (3.3 / 4095.0); // Convert raw value to voltage (assuming 3.3V reference)
+    float voltage2 = raw2 * (3.3 / 4095.0); // Convert raw value to voltage
+    
+    Serial.print("Voltage at GPIO 32: ");
+    Serial.print(voltage1, 2); // Print with 2 decimal places
+    Serial.print(" V  |  Voltage at GPIO 33: ");
+    Serial.print(voltage2, 2);
+    Serial.println(" V");
+    adc1 = voltage1;
+    adc2 = voltage2;
+
   } else {
     Serial.println("Simulating ADC values...");
 
-    adc1 = getSimulatedADCValue(ADC1_PIN);  // Use simulated values
-    adc2 = getSimulatedADCValue(ADC2_PIN);
-  }
+    if (increasing) {
+      adc2 += 0.05;                         // Increase voltage
+      if (adc2 >= 3.3) increasing = false;  // Reverse direction at max
+    } else {
+      adc2 -= 0.05;                        // Decrease voltage
+      if (adc2 <= 0.0) increasing = true;  // Reverse direction at min
+    }
 
+    adc1 = adc2 / 5;
+  }
+  Serial.print("Simulation mode = ");
+  Serial.println(SIMULATION_MODE);
+  if (SIMULATION_MODE) {
+  Serial.print("Increasing =  ");
+  Serial.println(increasing);
+  }
   Serial.print("ADC1 Voltage (REF): ");
   Serial.println(adc1, 2);
-
   Serial.print("ADC2 Voltage (FWD): ");
   Serial.println(adc2, 2);
 
   // Map voltages correctly to angles
   needleREF = mapFloat(adc1, 0.0, 1.0, -64, -6);
   needleFWD = mapFloat(adc2, 0.0, 3.3, -115, -174);
- 
+
   Serial.print("Mapped needleREF: ");
   Serial.println(needleREF);
 
@@ -263,27 +261,7 @@ void loop() {
   drawNeedles(needleREF, needleFWD);
   drawInfoBoxes(boxREF, boxFWD, vswr);
 
-  delay(500);
-}
-
-void simulateNeedles() {
-  // Simulate ADC1 (Reflected Power) between 0.0 and 1.0
-  if (countingUpREF) {
-    simulatedADC1 += 0.1;
-    if (simulatedADC1 >= 1.0) countingUpREF = false;
-  } else {
-    simulatedADC1 -= 0.1;
-    if (simulatedADC1 <= 0.0) countingUpREF = true;
-  }
-
-  // Simulate ADC2 (Forward Power) between 0.0 and 3.0
-  if (countingUpFWD) {
-    simulatedADC2 += 0.1;
-    if (simulatedADC2 >= 3.0) countingUpFWD = false;
-  } else {
-    simulatedADC2 -= 0.1;
-    if (simulatedADC2 <= 0.0) countingUpFWD = true;
-  }
+  delay(50);
 }
 
 void drawWideLine(int x0, int y0, int x1, int y1, int color, int width) {
