@@ -1,7 +1,7 @@
 /*--------------------------------------------------------------
   VSWR meter - Version 1.0
   sketch name: Webrotor_Antenna_sensor_TTGO.ino
-  Last updated 03032025-00:30 CET
+  Last updated 03032025-15:30 CET
   --------------------------------------------------------------
 
   Description:  Code to create a cross needle display for use with SWR meters
@@ -14,7 +14,6 @@
     // The sketch calculates the size of the buffer memory required and
     // reserves the memory for the TFT block copy.
     // Based on a design by Robert de Kok, PA2RDK, and rewritten by PA0ESH & CHATGPT.
-    // Sunday March 2nd 2025
 --------------------------------------------------------------*/
 
 
@@ -46,7 +45,7 @@ TFT_eSprite sprite = TFT_eSprite(&tft);
 #define BOX_SPACING 10
 
 // Simulation or Real mode define
-#define SIMULATION_MODE 0  // Set to 0 for real ADC values or 1 for simulated values
+#define SIMULATION_MODE 1  // Set to 0 for real ADC values or 1 for simulated values
 
 // Needle animation counters
 int needleREF = 0;
@@ -56,8 +55,8 @@ int needleFWD = 0;
 bool countingUpFWD = true;
 
 // Simulated values for ADC1 (Reflected Power) and ADC2 (Forward Power)
-float simulatedADC1 = 1.0;  // Simulated voltage for ADC1 (Reflected Power) (0-1V range)
-float simulatedADC2 = 3.0;  // Simulated voltage for ADC2 (Forward Power) (0-3V range)
+float simulatedADC1 = 0.0;  // Simulated voltage for ADC1 (Reflected Power) (0-1V range)
+float simulatedADC2 = 0.0;  // Simulated voltage for ADC2 (Forward Power) (0-3V range)
 
 
 void setup() {
@@ -104,10 +103,10 @@ float getRealADCValue(int pin) {
 // Function to get ADC value based on mode (simulation or real)
 float getADCValue(int pin) {
   if (SIMULATION_MODE == 1) {  // Explicitly check if SIMULATION_MODE is set to 1
-    //Serial.println("Using simulated ADC values.");
+    Serial.println("Using simulated ADC values.");
     return getSimulatedADCValue(pin);
   } else {
-    //Serial.println("Using real ADC values.");
+    Serial.println("Using real ADC values.");
     return getRealADCValue(pin);
   }
 }
@@ -133,7 +132,7 @@ void drawNeedles(float angle1, float angle2) {
 
 
   // Calculate dynamic needle length for Needle 2 (Forward Power)
-  int needleLength2 = map(angle2, -174, -120, 255, 195);
+  int needleLength2 = map(angle2, -174, -115, 255, 195);
   float rad2 = radians(angle2);
   int x2 = NEEDLE2_X + cos(rad2) * needleLength2;
   int y2 = NEEDLE2_Y + sin(rad2) * needleLength2;
@@ -216,30 +215,30 @@ void loop() {
     adc1 = getADCValue(ADC1_PIN);  // Read ADC voltage (0-3V or 0-1V)
     adc2 = getADCValue(ADC2_PIN);
   } else {
-    //Serial.println("Simulating ADC values...");
+    Serial.println("Simulating ADC values...");
 
     adc1 = getSimulatedADCValue(ADC1_PIN);  // Use simulated values
     adc2 = getSimulatedADCValue(ADC2_PIN);
   }
 
-  //Serial.print("ADC1 Voltage (REF): ");
-  //Serial.println(adc1, 2);
+  Serial.print("ADC1 Voltage (REF): ");
+  Serial.println(adc1, 2);
 
-  //Serial.print("ADC2 Voltage (FWD): ");
-  //Serial.println(adc2, 2);
+  Serial.print("ADC2 Voltage (FWD): ");
+  Serial.println(adc2, 2);
 
   // Map voltages correctly to angles
   needleREF = mapFloat(adc1, 0.0, 1.0, -64, -6);
-  needleFWD = mapFloat(adc2, 0.0, 3.0, -120, -174);
+  needleFWD = mapFloat(adc2, 0.0, 3.3, -115, -174);
+ 
+  Serial.print("Mapped needleREF: ");
+  Serial.println(needleREF);
 
-  //Serial.print("Mapped needleREF: ");
-  //Serial.println(needleREF);
-
-  //Serial.print("Mapped needleFWD: ");
-  //Serial.println(needleFWD);
+  Serial.print("Mapped needleFWD: ");
+  Serial.println(needleFWD);
 
   float boxREF = mapFloat(needleREF, -64, -6, 0.0, 10.0);
-  float boxFWD = mapFloat(needleFWD, -120, -175, 0.0, 30.0);
+  float boxFWD = mapFloat(needleFWD, -115, -174, 0.0, 30.0);
 
   // Ensure boxREF is not negative and is exactly 0 when ADC1 is 0V
   if (adc1 <= 0.01) {
@@ -251,20 +250,20 @@ void loop() {
     boxFWD = 0.0;
   }
 
-  //Serial.print("Reflected Power (W): ");
-  //Serial.println(boxREF, 2);
+  Serial.print("Reflected Power (W): ");
+  Serial.println(boxREF, 2);
 
-  //Serial.print("Forward Power (W): ");
-  //Serial.println(boxFWD, 2);
+  Serial.print("Forward Power (W): ");
+  Serial.println(boxFWD, 2);
 
   float vswr = calculateVSWR(boxREF, boxFWD);
-  //Serial.print("VSWR: ");
-  //Serial.println(vswr, 2);
+  Serial.print("VSWR: ");
+  Serial.println(vswr, 2);
 
   drawNeedles(needleREF, needleFWD);
   drawInfoBoxes(boxREF, boxFWD, vswr);
 
-  delay(50);
+  delay(500);
 }
 
 void simulateNeedles() {
